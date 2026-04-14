@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,24 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import {
+  InterstitialAd,
+  AdEventType,
+  TestIds,
+} from 'react-native-google-mobile-ads';
 import CourseCard from '../components/CourseCard';
 import AdPlaceholder from '../components/AdPlaceholder';
 import { saveHistory } from '../services/api';
+import { AD_UNIT_IDS } from '../config/adConfig';
+
+// ─── 전면 광고 인스턴스 생성 ──────────────────────────────────────
+const interstitialUnitId = __DEV__
+  ? TestIds.INTERSTITIAL
+  : AD_UNIT_IDS.INTERSTITIAL;
+
+const interstitial = InterstitialAd.createForAdRequest(interstitialUnitId, {
+  requestNonPersonalizedAdsOnly: false,
+});
 
 const MOOD_LABELS = {
   normal:   '😊 일반',
@@ -23,6 +38,44 @@ export default function ResultScreen({ navigation, route }) {
   const { course = [], location, mood = 'normal', lat, lon } = route.params || {};
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const interstitialLoaded = useRef(false);
+
+  // ─── 전면 광고 로드 & 표시 ──────────────────────────────────────
+  useEffect(() => {
+    // 광고 로드
+    const unsubLoad = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      interstitialLoaded.current = true;
+    });
+
+    const unsubClose = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      interstitialLoaded.current = false;
+      // 닫힌 후 다음 광고 미리 로드
+      interstitial.load();
+    });
+
+    const unsubError = interstitial.addAdEventListener(AdEventType.ERROR, (e) => {
+      console.warn('[AdMob][Interstitial] 오류:', e.message);
+      interstitialLoaded.current = false;
+    });
+
+    interstitial.load();
+
+    // 광고 표시 (500ms 딜레이 후 — 화면 전환 완료 후)
+    const timer = setTimeout(() => {
+      if (interstitialLoaded.current) {
+        interstitial.show().catch((e) =>
+          console.warn('[AdMob][Interstitial] show 실패:', e.message),
+        );
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      unsubLoad();
+      unsubClose();
+      unsubError();
+    };
+  }, []);
 
   // ─── 히스토리 저장 ───────────────────────────────────────────
   const handleSave = async () => {
@@ -96,7 +149,7 @@ export default function ResultScreen({ navigation, route }) {
                 order={index + 1}
                 onMapOpen={() => handleMapOpen(place)}
               />
-              {/* 2번 카드 아래 인라인 광고 */}
+              {/* 2번 카드 아래 인라인 광고 (300×250 Medium Rectangle) */}
               {index === 1 && course.length > 2 && (
                 <AdPlaceholder type="inline" />
               )}
@@ -124,8 +177,8 @@ export default function ResultScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {/* 하단 배너 광고 */}
-        <AdPlaceholder type="banner" />
+        {/* 하단 배너 광고 (320×50) */}
+        <AdPlaceholder type="banner_result" />
 
         <View style={{ height: 24 }} />
       </ScrollView>

@@ -92,8 +92,8 @@ export default function HomeScreen({ navigation, route }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* 상단 배너 광고 */}
-        <AdPlaceholder type="banner" />
+        {/* 상단 배너 광고 (320×50) */}
+        <AdPlaceholder type="banner_home" />
 
         {/* 분위기 선택 */}
         <View style={styles.section}>

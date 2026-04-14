@@ -124,7 +124,7 @@ export default function HistoryScreen({ navigation }) {
             tintColor="#FF6B9D"
           />
         }
-        ListHeaderComponent={<AdPlaceholder type="banner" />}
+        ListHeaderComponent={<AdPlaceholder type="banner_history" />}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyEmoji}>📭</Text>

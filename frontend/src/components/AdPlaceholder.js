@@ -1,90 +1,113 @@
 /**
- * 광고 플레이스홀더 컴포넌트
+ * AdMob 광고 컴포넌트
  *
- * 실제 광고 연동 시:
- *  - AdMob: react-native-google-mobile-ads
- *  - Kakao AdFit: react-native-kakao-adfit
- *  - Naver GFA: 별도 웹뷰 방식
+ * 배너 유형
+ *  - 'banner'  : 320×50  (표준 배너)
+ *  - 'inline'  : 300×250 (Medium Rectangle, 리스트 중간)
  *
- * type:
- *  - 'banner'       : 하단/상단 배너 (320x50 ~ 320x100)
- *  - 'inline'       : 리스트 중간 광고 (300x250)
- *  - 'interstitial' : 전면 광고 (별도 SDK 처리)
+ * 전면 광고는 별도 훅(useInterstitialAd)으로 처리 → ResultScreen 참고
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import {
+  BannerAd,
+  BannerAdSize,
+  TestIds,
+} from 'react-native-google-mobile-ads';
+import { AD_UNIT_IDS } from '../config/adConfig';
 
-const AD_CONFIGS = {
-  banner: {
-    height: 62,
-    icon: '📢',
-    title: '광고 배너',
-    sub: 'AdMob / Kakao AdFit 연동 가능',
-    bgColor: '#F8F0FF',
-    borderColor: '#D7B9F5',
-    textColor: '#8E44AD',
-  },
-  inline: {
-    height: 110,
-    icon: '🎁',
-    title: '스폰서 광고',
-    sub: '인라인 광고 영역 (300x250)',
-    bgColor: '#FFF8EE',
-    borderColor: '#FFD3A5',
-    textColor: '#E67E22',
-  },
+// ─── 광고 유닛 ID 선택 (개발 중엔 TestIds 사용) ──────────────────
+const UNIT_IDS = {
+  banner_home:    __DEV__ ? TestIds.BANNER : AD_UNIT_IDS.HOME_BANNER,
+  banner_result:  __DEV__ ? TestIds.BANNER : AD_UNIT_IDS.RESULT_BOTTOM_BANNER,
+  banner_history: __DEV__ ? TestIds.BANNER : AD_UNIT_IDS.HISTORY_BANNER,
+  inline:         __DEV__ ? TestIds.BANNER : AD_UNIT_IDS.RESULT_INLINE,
 };
 
-export default function AdPlaceholder({ type = 'banner', style }) {
-  // 전면 광고는 컴포넌트 렌더링 없이 처리
-  if (type === 'interstitial') return null;
+// ─── 광고 사이즈 맵핑 ────────────────────────────────────────────
+const AD_SIZES = {
+  banner_home:    BannerAdSize.BANNER,           // 320×50
+  banner_result:  BannerAdSize.BANNER,           // 320×50
+  banner_history: BannerAdSize.BANNER,           // 320×50
+  inline:         BannerAdSize.MEDIUM_RECTANGLE, // 300×250
+};
 
-  const config = AD_CONFIGS[type] || AD_CONFIGS.banner;
+/**
+ * @param {'banner_home' | 'banner_result' | 'banner_history' | 'inline'} type
+ */
+export default function AdPlaceholder({ type = 'banner_home', style }) {
+  const [adLoaded, setAdLoaded] = useState(false);
+  const [adFailed, setAdFailed] = useState(false);
+
+  const unitId  = UNIT_IDS[type];
+  const adSize  = AD_SIZES[type];
+  const isInline = type === 'inline';
+
+  if (!unitId) return null;
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          height: config.height,
-          backgroundColor: config.bgColor,
-          borderColor: config.borderColor,
-        },
-        style,
-      ]}
-    >
-      <Text style={styles.icon}>{config.icon}</Text>
-      <View>
-        <Text style={[styles.title, { color: config.textColor }]}>{config.title}</Text>
-        <Text style={[styles.sub, { color: config.textColor }]}>{config.sub}</Text>
-      </View>
+    <View style={[styles.wrapper, isInline && styles.wrapperInline, style]}>
+      {/* 로딩 중 또는 실패 시 fallback */}
+      {!adLoaded && !adFailed && (
+        <View style={[styles.fallback, isInline && styles.fallbackInline]}>
+          <Text style={styles.fallbackText}>📢</Text>
+          <Text style={styles.fallbackSub}>광고 로딩 중...</Text>
+        </View>
+      )}
+
+      {adFailed && (
+        <View style={[styles.fallback, isInline && styles.fallbackInline]}>
+          <Text style={styles.fallbackText}>📢</Text>
+          <Text style={styles.fallbackSub}>광고를 불러올 수 없습니다</Text>
+        </View>
+      )}
+
+      {/* 실제 AdMob 배너 */}
+      <BannerAd
+        unitId={unitId}
+        size={adSize}
+        requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+        onAdLoaded={() => {
+          setAdLoaded(true);
+          setAdFailed(false);
+        }}
+        onAdFailedToLoad={(error) => {
+          console.warn(`[AdMob][${type}] 로드 실패:`, error.message);
+          setAdFailed(true);
+          setAdLoaded(false);
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: 16,
+  wrapper: {
+    alignItems: 'center',
     marginVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    flexDirection: 'row',
+    minHeight: 52,
+  },
+  wrapperInline: {
+    minHeight: 260,
+    marginVertical: 12,
+  },
+  fallback: {
+    position: 'absolute',
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    flexDirection: 'row',
+    gap: 6,
   },
-  icon: {
-    fontSize: 22,
+  fallbackInline: {
+    height: 250,
   },
-  title: {
-    fontSize: 13,
-    fontWeight: '700',
+  fallbackText: {
+    fontSize: 16,
   },
-  sub: {
-    fontSize: 11,
-    marginTop: 2,
-    opacity: 0.75,
+  fallbackSub: {
+    fontSize: 12,
+    color: '#bbb',
   },
 });
